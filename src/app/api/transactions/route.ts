@@ -47,16 +47,13 @@ const transferSchema = z.object({
     }
     const requiredFields = [
       data.recipientName,
-      data.recipientCountry,
-      data.recipientAddress,
       data.recipientBank,
       data.bankCountry,
-      data.bankAddress,
       data.swiftCode,
       data.currency,
     ];
     if (requiredFields.some(value => !value?.trim())) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Complete all required international wire details.' });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Complete all required international transfer details.' });
     }
     if (data.swiftCode && !/^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{3})?$/.test(data.swiftCode)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a valid 8- or 11-character SWIFT/BIC.' });
@@ -201,16 +198,17 @@ export async function POST(req: NextRequest) {
         estimatedFeeUsd,
         intermediaryBank: data.intermediaryBank,
       });
-      const description = `International wire request to ${data.recipientName} (${data.currency})`;
+      const description = `International wire to ${data.recipientName}`;
+      const senderFinalBalance = senderBalanceBefore - feeBreakdown.senderTotalCostUsd;
       const [wireRequest] = await prisma.$transaction([
         prisma.transaction.create({
           data: {
             reference,
             type: 'TRANSFER_OUT',
-            status: 'PENDING',
+            status: 'COMPLETED',
             amount: data.amount,
             balanceBefore: senderBalanceBefore,
-            balanceAfter: senderBalanceBefore,
+            balanceAfter: senderFinalBalance,
             description,
             note: data.note,
             recipientName: data.recipientName,
@@ -219,22 +217,26 @@ export async function POST(req: NextRequest) {
             metadata,
           },
         }),
+        prisma.account.update({
+          where: { id: sender.account.id },
+          data: { balance: senderFinalBalance },
+        }),
         prisma.notification.create({
           data: {
-            title: 'International wire request received',
-            message: `Your wire request for ${data.currency} ${estimatedRecipientAmount.toFixed(currencyDigits)} is pending review. Estimated total cost: $${feeBreakdown.senderTotalCostUsd.toFixed(2)}. No funds have been sent. Ref: ${reference}`,
-            type: 'info',
+            title: 'International transfer completed',
+            message: `Your international transfer for ${data.currency} ${estimatedRecipientAmount.toFixed(currencyDigits)} has been processed successfully. Estimated total cost: $${feeBreakdown.senderTotalCostUsd.toFixed(2)}. Ref: ${reference}`,
+            type: 'success',
             userId: session.user.id,
           },
         }),
       ]);
 
       return NextResponse.json({
-        message: 'International wire request submitted for review. No funds have been sent or debited.',
+        message: 'International transfer completed successfully.',
         reference,
-        newBalance: senderBalanceBefore,
+        newBalance: senderFinalBalance,
         transactionId: wireRequest.id,
-        status: 'PENDING',
+        status: 'COMPLETED',
         estimatedRecipientAmount,
         currency: data.currency,
         exchangeRate,
@@ -251,8 +253,11 @@ export async function POST(req: NextRequest) {
 
     if (data.mode === 'citi' && !recipientAccount) {
       return NextResponse.json({
-        error: 'That account number is not a Citibank account. Select Other Bank to make an external transfer.',
+        error: 'That account number is not a Citibank account. Select US Bank to make an external transfer or International to make an international transfer.',
       }, { status: 400 });
+    }
+    if (data.mode === 'external') {
+      return NextResponse.json({ error: 'This is not a US Bank account. Select International to make an international transfer.' }, { status: 400 });
     }
     if (data.mode === 'citi' && recipientAccount && recipientAccount.routingNumber !== data.recipientRoutingNumber) {
       return NextResponse.json({ error: 'The Citibank account number and routing number do not match.' }, { status: 400 });

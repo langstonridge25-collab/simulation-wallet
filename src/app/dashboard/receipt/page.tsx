@@ -79,7 +79,7 @@ export default function ReceiptPage() {
         [transaction.status === 'PENDING' ? 'Estimated Total Sender Cost' : 'Total Debited', transaction.status === 'COMPLETED' ? `-${formatCurrency(transaction.amount + wireFee)}` : transaction.status === 'PENDING' ? `${formatCurrency(transaction.amount + wireFee)}; not debited` : 'Not debited'],
         ...(wireMetadata.resolution?.externalReference ? [['Bank Confirmation Reference', wireMetadata.resolution.externalReference]] : []),
       ] : [['Amount', `${sign}${formatCurrency(transaction.amount)}`]]),
-      ['Description',      transaction.description],
+      ['Description',      (transaction.description || '').replace(/\s*\([A-Z]{3}\)\s*$/, '') || transaction.description],
       ...(getCreditedBy(transaction) ? [['Credited By', getCreditedBy(transaction)]] : []),
       ...(!isTransferIn && transaction.recipientName ? [['Recipient Name', transaction.recipientName]] : []),
       ...(!isTransferIn && transaction.recipientBank ? [['Recipient Bank', transaction.recipientBank]] : []),
@@ -98,10 +98,17 @@ export default function ReceiptPage() {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1a2e; }
     .wrapper { max-width: 500px; margin: 40px auto; padding: 0 20px; }
-    .header { background: linear-gradient(135deg, #003B70, #0066B3); padding: 32px; text-align: center; border-radius: 16px 16px 0 0; }
-    .logo { font-size: 28px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
-    .amount { font-size: 42px; font-weight: 900; color: ${color}; margin: 16px 0 4px; }
-    .subtitle { color: rgba(255,255,255,0.7); font-size: 13px; }
+    .header { position: relative; background: linear-gradient(135deg, #003B70, #0066B3); padding: 32px; text-align: center; border-radius: 16px 16px 0 0; overflow: hidden; }
+    .header::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url('/citibank-logo2.png') center/contain no-repeat;
+      opacity: 0.12;
+    }
+    .logo { position: relative; z-index: 1; font-size: 28px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+    .amount { position: relative; z-index: 1; font-size: 42px; font-weight: 900; color: ${color}; margin: 16px 0 4px; }
+    .subtitle { position: relative; z-index: 1; color: rgba(255,255,255,0.7); font-size: 13px; }
     .status-bar { background: #1A8C4E; color: #fff; text-align: center; padding: 10px; font-weight: 700; font-size: 14px; }
     .body { border: 1px solid #E8EAED; border-top: none; padding: 24px; }
     .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
@@ -188,6 +195,7 @@ export default function ReceiptPage() {
   const isTransferIn = transaction.type === 'TRANSFER_IN';
   const isTransferOut = transaction.type === 'TRANSFER_OUT';
   const isPending = transaction.status === 'PENDING';
+  const sanitizedDescription = (transaction.description || '').replace(/\s*\([A-Z]{3}\)\s*$/, '');
   const wireMetadata = getWireMetadata(transaction);
   const wireFee = typeof wireMetadata?.estimatedFeeUsd === 'number' ? wireMetadata.estimatedFeeUsd : 0;
   const feeBreakdown = wireMetadata?.feeBreakdown;
@@ -212,7 +220,7 @@ export default function ReceiptPage() {
       [transaction.status === 'PENDING' ? 'Estimated Total Sender Cost' : 'Total Debited', transaction.status === 'COMPLETED' ? `-${formatCurrency(transaction.amount + wireFee)}` : transaction.status === 'PENDING' ? `${formatCurrency(transaction.amount + wireFee)}; not debited` : 'Not debited'],
       ...(wireMetadata.resolution?.externalReference ? [['Bank Confirmation Reference', wireMetadata.resolution.externalReference]] : []),
     ] : [['Amount', `${sign}${formatCurrency(transaction.amount)}`]]),
-    ['Description',      transaction.description],
+    ['Description',      sanitizedDescription || transaction.description],
     ...(getCreditedBy(transaction) ? [['Credited By', getCreditedBy(transaction)]] : []),
     ...(!isTransferIn && transaction.recipientName ? [['Recipient Name', transaction.recipientName]] : []),
     ...(!isTransferIn && transaction.recipientBank ? [['Recipient Bank', transaction.recipientBank]] : []),
@@ -224,7 +232,7 @@ export default function ReceiptPage() {
   ];
 
   return (
-    <div className="w-full max-w-md mx-auto -mt-14 sm:mt-0 animate-fade-in pb-4 sm:pb-10">
+    <div className="w-full max-w-full sm:max-w-md mx-auto px-2 sm:px-0 -mt-10 sm:-mt-14 animate-fade-in pb-4 sm:pb-10">
 
       {/* Top actions */}
       <div className="flex items-center justify-between gap-1 mb-1 sm:gap-2 sm:mb-6">
@@ -248,17 +256,20 @@ export default function ReceiptPage() {
       <div ref={receiptRef} className="bg-white rounded-2xl border border-citi-gray-200 overflow-hidden shadow-card">
 
         {/* Header */}
-        <div className="bg-gradient-to-br from-citi-blue to-citi-blue-light p-3 sm:p-8 text-center text-white">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-1.5 sm:mb-3">
-            <CheckCircle className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+        <div className="relative bg-gradient-to-br from-citi-blue to-citi-blue-light p-3 sm:p-8 text-center text-white overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/citibank-logo2.png')] bg-contain bg-center bg-no-repeat opacity-10" aria-hidden="true" />
+          <div className="relative z-10">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-1.5 sm:mb-3">
+              <CheckCircle className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+            </div>
+            <p className="text-blue-200 text-[10px] sm:text-xs font-medium uppercase tracking-wide mb-1 sm:mb-2">
+              {isPending ? 'International Wire Request' : `Transaction ${isCredit ? 'Received' : 'Sent'}`}
+            </p>
+            <p className={`text-2xl sm:text-4xl font-black break-all ${isCredit ? 'text-green-300' : 'text-white'}`}>
+              {sign}{formatCurrency(transaction.amount)}
+            </p>
+            <p className="text-blue-200 text-xs sm:text-sm mt-1 sm:mt-2">{formatDateTime(transaction.createdAt)}</p>
           </div>
-          <p className="text-blue-200 text-[10px] sm:text-xs font-medium uppercase tracking-wide mb-1 sm:mb-2">
-            {isPending ? 'International Wire Request' : `Transaction ${isCredit ? 'Received' : 'Sent'}`}
-          </p>
-          <p className={`text-2xl sm:text-4xl font-black break-all ${isCredit ? 'text-green-300' : 'text-white'}`}>
-            {sign}{formatCurrency(transaction.amount)}
-          </p>
-          <p className="text-blue-200 text-xs sm:text-sm mt-1 sm:mt-2">{formatDateTime(transaction.createdAt)}</p>
         </div>
 
         {/* Status bar */}
@@ -268,15 +279,15 @@ export default function ReceiptPage() {
         </div>
 
         {/* Details */}
-        <div className="p-6 sm:p-6">
+        <div className="p-3 sm:p-6">
           <div className="divide-y divide-citi-gray-100">
             {rows.map(([label, value]) => (
-              <div key={label} className="flex justify-between items-start py-1 sm:py-3.5 gap-2 sm:gap-3">
-                <span className="text-[11px] sm:text-sm text-citi-gray-400 font-medium flex-shrink-0">{label}</span>
-                <span className={`text-[11px] sm:text-sm font-semibold text-right break-all min-w-0 ${
+              <div key={label} className="flex justify-between items-start py-1.5 sm:py-3 gap-2 sm:gap-3">
+                <span className="text-[10px] sm:text-sm text-citi-gray-400 font-medium flex-shrink-0 max-w-[40%]">{label}</span>
+                <span className={`text-[10px] sm:text-sm font-semibold text-right break-words min-w-0 ${
                   label === 'Amount' || label === 'Total Debited' || label === 'Estimated Total Sender Cost' ? amtColor :
                   label === 'Status' ? isPending ? 'text-yellow-700' : 'text-citi-green' :
-                  label === 'Reference Number' ? 'font-mono text-citi-blue text-xs' :
+                  label === 'Reference Number' ? 'font-mono text-citi-blue text-[10px] sm:text-xs' :
                   'text-citi-gray-800'
                 }`}>
                   {value}
