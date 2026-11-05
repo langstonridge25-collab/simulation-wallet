@@ -26,7 +26,13 @@ export default function LoginPage() {
       return;
     }
 
-    if (res?.error !== 'INVALID_OTP') {
+    if (!res?.error) {
+      router.push('/admin');
+      router.refresh();
+      return;
+    }
+
+    if (res.error !== 'INVALID_OTP') {
       setError('Invalid email or password.');
       setLoading(false);
       return;

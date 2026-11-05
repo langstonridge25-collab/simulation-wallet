@@ -6,12 +6,24 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Setting up admin only...');
 
-  const adminPassword = await bcrypt.hash('Admin@123456', 12);
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const configuredPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail || !configuredPassword?.trim()) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be set to seed the admin account.');
+  }
+
+  const adminPassword = await bcrypt.hash(configuredPassword, 12);
   await prisma.user.upsert({
-    where: { email: 'admin@citibank.com' },
-    update: {},
+    where: { email: adminEmail },
+    update: {
+      password: adminPassword,
+      firstName: 'System',
+      lastName: 'Administrator',
+      role: Role.ADMIN,
+      isEmailVerified: true,
+    },
     create: {
-      email: 'admin@citibank.com',
+      email: adminEmail,
       password: adminPassword,
       firstName: 'System',
       lastName: 'Administrator',
@@ -20,7 +32,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Admin ready: admin@citibank.com / Admin@123456');
+  console.log(`✅ Admin ready: ${adminEmail}`);
   console.log('Real users must register through the app.');
 }
 
